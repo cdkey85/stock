@@ -1,0 +1,73 @@
+@startuml 技术栈总览
+
+title InStock技术栈与工具链
+
+top to bottom direction
+
+package "Python 3.11核心生态" {
+    component "pandas 2.3.1" as pandas
+    component "numpy 2.3.1" as numpy
+    component "TA-Lib 0.6.4" as talib
+    component "bokeh 3.6.2" as bokeh
+}
+
+package "Web服务技术栈" {
+    component "Tornado 6.5.1" as tornado
+    component "Bootstrap 3.4.1" as bootstrap
+    component "jQuery" as jquery
+}
+
+package "数据库技术栈" {
+    component "PyMySQL 1.1.1" as pymysql
+    component "SQLAlchemy 2.0.41" as sqlalchemy
+    database "MySQL 8.0+" as mysql
+}
+
+package "数据采集技术栈" {
+    component "requests 2.32.4" as requests
+    component "beautifulsoup4" as bs4
+    component "py_mini_racer" as js_engine
+}
+
+package "自动交易技术栈" {
+    component "easytrader 0.23.7" as easytrader
+    component "Tesseract OCR" as tesseract
+}
+
+package "辅助工具" {
+    component "pycryptodome" as crypto
+    component "Supervisor" as supervisor
+    component "Docker" as docker
+}
+
+' 依赖关系
+tornado --> pymysql
+sqlalchemy --> pymysql
+pymysql --> mysql
+
+pandas --> numpy
+talib --> numpy
+
+requests --> bs4
+
+easytrader --> tesseract
+
+supervisor --> docker
+
+note as N1
+  **性能指标**
+  - 任务耗时: ~4分钟
+  - 线程数: 16
+  - 股票数: 5000+
+  - 历史数据: 210日
+end note
+
+note as N2
+  **系统要求**
+  - Python 3.11+
+  - MySQL 5.7+
+  - 内存: 4GB+
+  - TA-Lib C库
+end note
+
+@enduml

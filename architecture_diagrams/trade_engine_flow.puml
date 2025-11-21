@@ -1,0 +1,180 @@
+@startuml 自动交易引擎架构
+
+title InStock自动交易引擎架构与流程
+
+participant "trade_service" as service
+participant "MainEngine\n(主引擎)" as main
+participant "EventEngine\n(事件引擎)" as event
+participant "ClockEngine\n(时钟引擎)" as clock
+participant "StrategyLoader\n(策略加载器)" as loader
+participant "Strategy\n(交易策略)" as strategy
+participant "easytrader" as trader
+participant "券商客户端" as broker
+
+== 交易服务启动 ==
+service -> service: trade_service.main()
+service -> main: MainEngine(broker='gf_client')
+
+activate main
+main -> main: 读取trade_client.json配置
+
+note right
+  配置内容:
+  - 券商类型(同花顺)
+  - 客户端路径
+  - 账号信息
+end note
+
+main -> trader: easytrader.use(broker)
+main -> trader: user.prepare(need_data)
+trader -> broker: 连接券商客户端
+broker --> trader: 登录成功
+
+main -> event: EventEngine()初始化
+activate event
+event -> event: 创建事件队列Queue
+event -> event: 创建处理线程
+deactivate event
+
+main -> clock: ClockEngine(event_engine)
+activate clock
+clock -> clock: 设置交易时段
+note right
+  时段配置:
+  - 开盘前: 09:00-09:30
+  - 集合竞价: 09:25
+  - 上午盘: 09:30-11:30
+  - 下午盘: 13:00-15:00
+  - 收盘后: 15:00-18:00
+end note
+deactivate clock
+
+deactivate main
+
+== 策略动态加载 ==
+service -> main: load_strategy()
+main -> loader: 扫描strategies目录
+
+loop 每个策略文件
+    loader -> loader: 检查文件修改时间
+    
+    alt 首次加载或已修改
+        loader -> loader: importlib.import_module()
+        loader -> loader: 实例化Strategy类
+        loader -> strategy: Strategy(user, log_handler, main_engine)
+        
+        activate strategy
+        strategy -> strategy: 初始化策略参数
+        strategy -> event: 注册时钟事件监听
+        deactivate strategy
+        
+        loader -> loader: 缓存strategy实例
+    else 未修改
+        loader -> loader: 跳过加载
+    end
+end
+
+note right of loader
+  动态重载特性:
+  - 监控策略文件变化
+  - 自动卸载旧策略
+  - 热加载新策略
+  - 无需重启服务
+end note
+
+== 引擎启动 ==
+service -> main: start()
+main -> event: start()
+activate event
+event -> event: 启动事件处理线程
+event -> event: 循环处理事件队列
+deactivate event
+
+main -> clock: start()
+activate clock
+clock -> clock: 启动定时器线程
+deactivate clock
+
+== 交易时段事件循环 ==
+loop 交易时段
+    clock -> clock: 检查当前时间
+    
+    alt 每分钟触发
+        clock -> event: put(ClockEvent)
+        event -> event: 从队列取事件
+        
+        event -> strategy: clock(event)
+        activate strategy
+        
+        strategy -> strategy: 执行策略逻辑
+        
+        note right
+          策略示例:
+          - 打新策略
+          - 网格交易
+          - 动量跟踪
+          - 套利策略
+        end note
+        
+        alt 满足买入条件
+            strategy -> trader: user.buy(code, price, amount)
+            trader -> broker: 发送买入指令
+            broker --> trader: 委托成功
+            trader --> strategy: 返回委托单号
+            
+            strategy -> strategy: 记录交易日志
+        else 满足卖出条件
+            strategy -> trader: user.sell(code, price, amount)
+            trader -> broker: 发送卖出指令
+            broker --> trader: 委托成功
+            trader --> strategy: 返回委托单号
+        else 查询持仓
+            strategy -> trader: user.balance
+            trader -> broker: 查询资金
+            broker --> trader: 返回余额
+            
+            strategy -> trader: user.position
+            trader -> broker: 查询持仓
+            broker --> trader: 返回持仓列表
+        end
+        
+        deactivate strategy
+    end
+end
+
+== 策略热重载(可选) ==
+alt 检测到策略文件修改
+    main -> loader: load_strategy()
+    loader -> event: 卸载旧策略监听
+    loader -> strategy: 旧策略.shutdown()
+    
+    loader -> loader: importlib.reload(module)
+    loader -> loader: 实例化新策略
+    loader -> event: 注册新策略监听
+    
+    note right
+      热重载步骤:
+      1. 检测文件mtime变化
+      2. 卸载旧策略事件
+      3. 重载Python模块
+      4. 创建新策略实例
+      5. 重新注册事件
+    end note
+end
+
+== 服务关闭 ==
+service -> main: 接收SIGINT/SIGTERM信号
+main -> main: _shutdown()
+
+main -> strategy: shutdown()
+loop 所有策略
+    strategy -> strategy: 平仓/撤单操作
+    strategy -> strategy: 保存状态
+end
+
+main -> clock: stop()
+main -> event: stop()
+main -> trader: 断开连接
+main -> service: sys.exit(1)
+
+@enduml

@@ -1,0 +1,163 @@
+@startuml 核心业务调用逻辑
+
+title InStock核心业务调用逻辑流程图
+
+actor "定时任务" as scheduler
+participant "execute_daily_job" as exec
+participant "singleton_stock" as singleton
+participant "stock_hist_em" as crawler
+participant "calculate_indicator" as indicator
+participant "pattern_recognitions" as pattern
+participant "strategy.enter" as strategy
+participant "rate_stats" as backtest
+participant "database" as db
+participant "TA-Lib" as talib
+
+== 1. 初始化阶段 ==
+scheduler -> exec: 启动每日任务
+exec -> db: init_job.main()\n创建数据库表结构
+
+== 2. 基础数据抓取 ==
+exec -> crawler: basic_data_daily_job.main()
+activate crawler
+crawler -> crawler: stock_zh_a_spot_em()\n获取A股实时行情
+crawler -> db: insert_db_from_df()\n存储股票基础数据
+deactivate crawler
+
+== 3. 历史数据加载(单例模式) ==
+exec -> singleton: stock_hist_data(date, stocks)
+activate singleton
+singleton -> singleton: ThreadPoolExecutor(workers=16)\n创建线程池
+
+loop 每个股票(并行)
+    singleton -> crawler: fetch_stock_hist(stock)\n获取历史K线
+    crawler -> crawler: stock_zh_a_hist()\n东方财富API
+    crawler --> singleton: 返回DataFrame
+end
+
+singleton -> singleton: 缓存到self.data字典
+deactivate singleton
+
+== 4. 技术指标计算(并行执行) ==
+par 指标计算线程
+    exec -> indicator: indicators_data_daily_job.main()
+    activate indicator
+    
+    loop 每个股票
+        indicator -> singleton: 获取历史数据
+        indicator -> indicator: get_indicators(data)
+        
+        note right
+          计算32种技术指标:
+          MACD, KDJ, BOLL, RSI
+          CCI, DMI, TRIX, etc.
+        end note
+        
+        indicator -> talib: MACD(close, 12, 26, 9)
+        talib --> indicator: macd, macds, macdh
+        
+        indicator -> talib: STOCH(high, low, close)
+        talib --> indicator: kdjk, kdjd
+        
+        indicator -> talib: BBANDS(close, 20, 2)
+        talib --> indicator: boll_ub, boll, boll_lb
+        
+        indicator -> talib: RSI(close, 14)
+        talib --> indicator: rsi
+        
+        indicator -> indicator: 计算Supertrend等自定义指标
+    end
+    
+    indicator -> db: 批量存储指标数据
+    deactivate indicator
+    
+else K线形态识别线程
+    exec -> pattern: klinepattern_data_daily_job.main()
+    activate pattern
+    
+    loop 每个股票
+        pattern -> singleton: 获取历史数据
+        pattern -> pattern: get_pattern_recognitions()
+        
+        note right
+          识别61种K线形态:
+          三只乌鸦、晨星、吞没
+          锤头、射击之星等
+        end note
+        
+        pattern -> talib: CDL3BLACKCROWS(o,h,l,c)
+        pattern -> talib: CDLMORNINGSTAR(o,h,l,c)
+        pattern -> talib: CDLENGULFING(o,h,l,c)
+        
+        pattern -> pattern: 形态匹配判断
+        
+        pattern -[#red]> pattern: 筹码分布CYQ计算\n(210日成本分布)
+    end
+    
+    pattern -> db: 存储形态数据
+    deactivate pattern
+    
+else 选股策略执行线程
+    exec -> strategy: strategy_data_daily_job.main()
+    activate strategy
+    
+    loop 每个股票
+        strategy -> singleton: 获取历史数据
+        
+        alt 放量上涨策略
+            strategy -> indicator: 获取指标数据
+            strategy -> strategy: check_volume()\n判断是否满足条件
+            
+            note right
+              条件检查:
+              1. 涨幅<2%或收盘<开盘
+              2. 成交额≥2亿
+              3. 成交量/5日均量≥2
+            end note
+            
+            strategy -> talib: MA(volume, 5)\n计算5日均量
+        else 突破平台策略
+            strategy -> strategy: breakthrough_platform.check()
+        else 回踩年线策略
+            strategy -> strategy: backtrace_ma250.check()
+        else 海龟交易策略
+            strategy -> strategy: turtle_trade.check()
+        end
+        
+        strategy -> strategy: 策略打分
+    end
+    
+    strategy -> db: 存储选股结果
+    deactivate strategy
+end
+
+== 5. 回测验证 ==
+exec -> backtest: backtest_data_daily_job.main()
+activate backtest
+
+backtest -> db: 查询历史选股结果
+backtest -> db: 查询后续股价表现
+
+loop 每个策略
+    backtest -> backtest: 计算成功率统计
+    
+    note right
+      统计指标:
+      - 5日涨跌幅
+      - 10日涨跌幅
+      - 20日涨跌幅
+      - 成功率排名
+    end note
+end
+
+backtest -> db: 存储回测结果
+deactivate backtest
+
+== 6. 收盘后数据 ==
+exec -> crawler: basic_data_after_close_daily_job.main()
+crawler -> crawler: 龙虎榜、大宗交易等
+crawler -> db: 存储收盘后数据
+
+exec -> scheduler: 任务完成(约4分钟)
+
+@enduml

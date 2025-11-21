@@ -1,0 +1,116 @@
+@startuml 数据流图
+
+title InStock数据流转示意图
+
+!define RECTANGLE class
+
+skinparam rectangle {
+    BackgroundColor<<data>> LightYellow
+    BackgroundColor<<process>> LightBlue
+    BackgroundColor<<storage>> LightGreen
+}
+
+rectangle "东方财富网\nAPI接口" as eastmoney <<data>>
+rectangle "HTTP代理池" as proxy <<data>>
+
+rectangle "数据爬虫层" as crawler <<process>> {
+    [实时行情爬虫]
+    [历史K线爬虫]
+    [龙虎榜爬虫]
+    [大宗交易爬虫]
+    [资金流向爬虫]
+    [ETF数据爬虫]
+}
+
+rectangle "MySQL数据库" as db <<storage>> {
+    database "基础数据表" as basic_db {
+        [股票信息表]
+        [历史行情表]
+        [龙虎榜表]
+        [大宗交易表]
+    }
+    
+    database "分析数据表" as analysis_db {
+        [技术指标表]
+        [K线形态表]
+        [筹码分布表]
+    }
+    
+    database "策略数据表" as strategy_db {
+        [选股结果表]
+        [回测统计表]
+    }
+}
+
+rectangle "单例缓存池" as singleton <<storage>> {
+    [股票数据缓存]
+    [交易日期缓存]
+    [代理缓存]
+}
+
+rectangle "计算分析层" as analysis <<process>> {
+    [TA-Lib指标引擎]
+    [K线形态识别]
+    [筹码分布计算]
+    [策略筛选引擎]
+    [回测统计引擎]
+}
+
+rectangle "应用服务层" as service <<process>> {
+    [Tornado Web服务]
+    [定时任务调度]
+    [自动交易引擎]
+}
+
+rectangle "用户终端" as client <<data>> {
+    [浏览器界面]
+    [券商客户端]
+}
+
+' 数据流向
+eastmoney -down-> proxy : 1. API请求
+proxy -down-> crawler : 2. 代理转发
+crawler -down-> db : 3. 原始数据存储
+db -right-> singleton : 4. 数据加载
+singleton -up-> analysis : 5. 批量计算
+analysis -left-> db : 6. 计算结果存储
+
+db -up-> service : 7. 数据查询
+service -up-> client : 8. 数据展示
+client -down-> service : 9. 用户交互
+service -down-> client : 10. 交易指令
+
+note right of eastmoney
+  数据更新频率:
+  - 实时行情: 每分钟
+  - 历史K线: 每日收盘后
+  - 龙虎榜: 每日20:00后
+  - 大宗交易: 每日16:00后
+end note
+
+note right of singleton
+  单例缓存特点:
+  - 全局唯一实例
+  - 线程安全访问
+  - 提高查询效率
+  - 减少数据库压力
+end note
+
+note left of analysis
+  并行计算:
+  - 16线程池
+  - 批量处理
+  - 增量更新
+  - 约4分钟完成
+end note
+
+note left of db
+  数据量级:
+  - 5000+股票
+  - 210日历史
+  - 32种指标
+  - 61种形态
+  - 11种策略
+end note
+
+@enduml

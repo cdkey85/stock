@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>InStock 系统架构图导航</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+            line-height: 1.6;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 2.5em;
+            font-weight: 700;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 40px;
+            font-size: 1.1em;
+        }
+
+        .stats {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-bottom: 40px;
+            flex-wrap: wrap;
+        }
+
+        .stat-item {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 30px;
+            border-radius: 10px;
+            text-align: center;
+            min-width: 150px;
+        }
+
+        .stat-item .number {
+            font-size: 2em;
+            font-weight: bold;
+            display: block;
+        }
+
+        .stat-item .label {
+            font-size: 0.9em;
+            opacity: 0.9;
+        }
+
+        .diagram-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+
+        .diagram-card {
+            background: #f8f9fa;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .diagram-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.2);
+        }
+
+        .diagram-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+        }
+
+        .diagram-header h2 {
+            margin-bottom: 5px;
+            font-size: 1.5em;
+        }
+
+        .diagram-header .filename {
+            font-size: 0.85em;
+            opacity: 0.9;
+            font-family: 'Courier New', monospace;
+        }
+
+        .diagram-body {
+            padding: 20px;
+        }
+
+        .diagram-description {
+            color: #555;
+            margin-bottom: 15px;
+            line-height: 1.8;
+        }
+
+        .diagram-meta {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+
+        .meta-tag {
+            background: #e9ecef;
+            padding: 5px 12px;
+            border-radius: 5px;
+            font-size: 0.85em;
+            color: #495057;
+        }
+
+        .diagram-preview {
+            margin: 20px 0;
+            text-align: center;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            border: 2px solid #e9ecef;
+        }
+
+        .diagram-preview img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: transform 0.3s ease;
+        }
+
+        .diagram-preview img:hover {
+            transform: scale(1.02);
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.95em;
+            text-decoration: none;
+            display: inline-block;
+            transition: all 0.3s ease;
+            text-align: center;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            opacity: 0.9;
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            padding-top: 30px;
+            border-top: 2px solid #e9ecef;
+            color: #666;
+        }
+
+        .footer a {
+            color: #667eea;
+            text-decoration: none;
+        }
+
+        .footer a:hover {
+            text-decoration: underline;
+        }
+
+        /* Modal样式 */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.9);
+            padding: 20px;
+        }
+
+        .modal-content {
+            margin: auto;
+            display: block;
+            max-width: 95%;
+            max-height: 95%;
+            animation: zoom 0.3s;
+        }
+
+        @keyframes zoom {
+            from {transform: scale(0.5)}
+            to {transform: scale(1)}
+        }
+
+        .close {
+            position: absolute;
+            top: 30px;
+            right: 45px;
+            color: #f1f1f1;
+            font-size: 40px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .close:hover {
+            color: #bbb;
+        }
+
+        @media (max-width: 768px) {
+            .diagram-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .container {
+                padding: 20px;
+            }
+            
+            h1 {
+                font-size: 1.8em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📊 InStock 系统架构图导航</h1>
+        <p class="subtitle">量化投资系统完整架构可视化文档</p>
+
+        <div class="stats">
+            <div class="stat-item">
+                <span class="number">7</span>
+                <span class="label">架构图</span>
+            </div>
+            <div class="stat-item">
+                <span class="number">6</span>
+                <span class="label">核心层次</span>
+            </div>
+            <div class="stat-item">
+                <span class="number">30+</span>
+                <span class="label">核心模块</span>
+            </div>
+            <div class="stat-item">
+                <span class="number">5000+</span>
+                <span class="label">股票数据</span>
+            </div>
+        </div>
+
+        <div class="diagram-grid">
+            <!-- 1. 系统架构图 -->
+            <div class="diagram-card">
+                <div class="diagram-header">
+                    <h2>1️⃣ 系统架构图</h2>
+                    <div class="filename">system_architecture.png</div>
+                </div>
+                <div class="diagram-body">
+                    <div class="diagram-description">
+                        完整的系统架构分层视图，展示InStock的六大层次：外部服务层、Web服务层、任务调度层、核心业务层、交易引擎层、基础设施层。清晰呈现各层模块及其交互关系。
+                    </div>
+                    <div class="diagram-meta">
+                        <span class="meta-tag">📐 尺寸: 1361×802</span>
+                        <span class="meta-tag">💾 大小: 61 KB</span>
+                        <span class="meta-tag">🎯 适用: 整体架构理解</span>
+                    </div>
+                    <div class="diagram-preview">
+                        <img src="system_architecture.png" alt="系统架构图" onclick="openModal(this.src)">
+                    </div>
+                    <div class="button-group">
+                        <a href="system_architecture.png" class="btn btn-primary" download>📥 下载PNG</a>
+                        <a href="system_architecture.puml" class="btn btn-secondary" download>📄 下载PUML</a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. 核心业务调用逻辑 -->
+            <div class="diagram-card">
+                <div class="diagram-header">
+                    <h2>2️⃣ 核心业务调用逻辑</h2>
+                    <div class="filename">core_logic_flow.png</div>
+                </div>
+                <div class="diagram-body">
+                    <div class="diagram-description">
+                        展示每日任务执行的完整流程，从数据库初始化、数据抓取、历史数据加载(16线程并行)，到技术指标计算(32种)、K线形态识别(61种)、策略选股(11种)，最后进行回测验证。
+                    </div>
+                    <div class="diagram-meta">
+                        <span class="meta-tag">📐 尺寸: 1753×2751</span>
+                        <span class="meta-tag">💾 大小: 133 KB</span>
+                        <span class="meta-tag">🎯 适用: 业务流程理解</span>
+                    </div>
+                    <div class="diagram-preview">
+                        <img src="core_logic_flow.png" alt="核心业务调用逻辑" onclick="openModal(this.src)">
+                    </div>
+                    <div class="button-group">
+                        <a href="core_logic_flow.png" class="btn btn-primary" download>📥 下载PNG</a>
+                        <a href="core_logic_flow.puml" class="btn btn-secondary" download>📄 下载PUML</a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. Web服务交互流程 -->
+            <div class="diagram-card">
+                <div class="diagram-header">
+                    <h2>3️⃣ Web服务交互流程</h2>
+                    <div class="filename">web_interaction_flow.png</div>
+                </div>
+                <div class="diagram-body">
+                    <div class="diagram-description">
+                        Tornado Web服务(9988端口)的完整交互流程，包括服务启动、路由处理、数据表格展示、Ajax异步加载、技术指标图表可视化(Bokeh)、用户操作响应等。
+                    </div>
+                    <div class="diagram-meta">
+                        <span class="meta-tag">📐 尺寸: 1482×2211</span>
+                        <span class="meta-tag">💾 大小: 100 KB</span>
+                        <span class="meta-tag">🎯 适用: Web开发参考</span>
+                    </div>
+                    <div class="diagram-preview">
+                        <img src="web_interaction_flow.png" alt="Web服务交互流程" onclick="openModal(this.src)">
+                    </div>
+                    <div class="button-group">
+                        <a href="web_interaction_flow.png" class="btn btn-primary" download>📥 下载PNG</a>
+                        <a href="web_interaction_flow.puml" class="btn btn-secondary" download>📄 下载PUML</a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 4. 自动交易引擎架构 -->
+            <div class="diagram-card">
+                <div class="diagram-header">
+                    <h2>4️⃣ 自动交易引擎架构</h2>
+                    <div class="filename">trade_engine_flow.png</div>
+                </div>
+                <div class="diagram-body">
+                    <div class="diagram-description">
+                        完整的自动交易引擎工作流程，展示MainEngine事件驱动架构、策略动态加载机制、交易时段循环、策略热重载、券商客户端交互、服务关闭流程等核心环节。
+                    </div>
+                    <div class="diagram-meta">
+                        <span class="meta-tag">📐 尺寸: 1480×3153</span>
+                        <span class="meta-tag">💾 大小: 137 KB</span>
+                        <span class="meta-tag">🎯 适用: 量化交易开发</span>
+                    </div>
+                    <div class="diagram-preview">
+                        <img src="trade_engine_flow.png" alt="自动交易引擎架构" onclick="openModal(this.src)">
+                    </div>
+                    <div class="button-group">
+                        <a href="trade_engine_flow.png" class="btn btn-primary" download>📥 下载PNG</a>
+                        <a href="trade_engine_flow.puml" class="btn btn-secondary" download>📄 下载PUML</a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 5. 数据流转示意图 -->
+            <div class="diagram-card">
+                <div class="diagram-header">
+                    <h2>5️⃣ 数据流转示意图</h2>
+                    <div class="filename">data_flow.png</div>
+                </div>
+                <div class="diagram-body">
+                    <div class="diagram-description">
+                        系统内数据流转的完整路径：从东方财富网API经HTTP代理到数据爬虫，存入MySQL基础数据表，通过单例缓存池加速访问，经计算分析层(TA-Lib)处理，最终服务于Web和交易引擎。
+                    </div>
+                    <div class="diagram-meta">
+                        <span class="meta-tag">📐 尺寸: 2646×1370</span>
+                        <span class="meta-tag">💾 大小: 176 KB</span>
+                        <span class="meta-tag">🎯 适用: 数据架构设计</span>
+                    </div>
+                    <div class="diagram-preview">
+                        <img src="data_flow.png" alt="数据流转示意图" onclick="openModal(this.src)">
+                    </div>
+                    <div class="button-group">
+                        <a href="data_flow.png" class="btn btn-primary" download>📥 下载PNG</a>
+                        <a href="data_flow.puml" class="btn btn-secondary" download>📄 下载PUML</a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 6. 模块依赖关系图 -->
+            <div class="diagram-card">
+                <div class="diagram-header">
+                    <h2>6️⃣ 模块依赖关系图</h2>
+                    <div class="filename">module_dependency.png</div>
+                </div>
+                <div class="diagram-body">
+                    <div class="diagram-description">
+                        详细的模块依赖关系，分为应用层、业务层、核心层、基础设施四层。展示web_service、数据爬虫、指标计算、形态识别、选股策略、交易引擎等30+模块的依赖关系。
+                    </div>
+                    <div class="diagram-meta">
+                        <span class="meta-tag">📐 尺寸: 1304×802</span>
+                        <span class="meta-tag">💾 大小: 67 KB</span>
+                        <span class="meta-tag">🎯 适用: 代码重构参考</span>
+                    </div>
+                    <div class="diagram-preview">
+                        <img src="module_dependency.png" alt="模块依赖关系图" onclick="openModal(this.src)">
+                    </div>
+                    <div class="button-group">
+                        <a href="module_dependency.png" class="btn btn-primary" download>📥 下载PNG</a>
+                        <a href="module_dependency.puml" class="btn btn-secondary" download>📄 下载PUML</a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 7. 技术栈总览 -->
+            <div class="diagram-card">
+                <div class="diagram-header">
+                    <h2>7️⃣ 技术栈总览</h2>
+                    <div class="filename">tech_stack.png</div>
+                </div>
+                <div class="diagram-body">
+                    <div class="diagram-description">
+                        完整的技术栈和工具链展示，包括Python核心生态(pandas/numpy/TA-Lib/bokeh)、Web服务(Tornado/Bootstrap)、数据库(MySQL/SQLAlchemy)、数据采集(requests)、自动交易(easytrader)、辅助工具(Docker/Supervisor)等。
+                    </div>
+                    <div class="diagram-meta">
+                        <span class="meta-tag">📐 尺寸: 2478×377</span>
+                        <span class="meta-tag">💾 大小: 29 KB</span>
+                        <span class="meta-tag">🎯 适用: 技术选型参考</span>
+                    </div>
+                    <div class="diagram-preview">
+                        <img src="tech_stack.png" alt="技术栈总览" onclick="openModal(this.src)">
+                    </div>
+                    <div class="button-group">
+                        <a href="tech_stack.png" class="btn btn-primary" download>📥 下载PNG</a>
+                        <a href="tech_stack.puml" class="btn btn-secondary" download>📄 下载PUML</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p><strong>InStock量化投资系统</strong> - 完整的选股、回测、交易解决方案</p>
+            <p>🔗 相关文档: <a href="README.md">使用指南</a> | <a href="架构分析总结.md">深度分析</a></p>
+            <p>🛠️ 渲染工具: <a href="render_multi_servers.py">render_multi_servers.py</a></p>
+            <p style="margin-top: 15px; color: #999; font-size: 0.9em;">
+                生成时间: 2025-11-20 | PlantUML在线渲染 | Python 3.11
+            </p>
+        </div>
+    </div>
+
+    <!-- 图片放大Modal -->
+    <div id="imageModal" class="modal" onclick="closeModal()">
+        <span class="close">&times;</span>
+        <img class="modal-content" id="modalImage">
+    </div>
+
+    <script>
+        function openModal(src) {
+            const modal = document.getElementById('imageModal');
+            const modalImg = document.getElementById('modalImage');
+            modal.style.display = 'block';
+            modalImg.src = src;
+        }
+
+        function closeModal() {
+            document.getElementById('imageModal').style.display = 'none';
+        }
+
+        // ESC键关闭Modal
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') {
+                closeModal();
+            }
+        });
+    </script>
+</body>
+</html>

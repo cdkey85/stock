@@ -1,0 +1,108 @@
+@startuml 模块依赖关系图
+
+title InStock模块依赖关系图
+
+top to bottom direction
+
+package "应用层" {
+    [web_service.py] as web
+    [trade_service.py] as trade
+    [execute_daily_job.py] as job
+}
+
+package "业务层" {
+    [数据爬虫模块] as crawler
+    [指标计算模块] as indicator
+    [形态识别模块] as pattern
+    [选股策略模块] as strategy
+    [交易引擎模块] as trade_engine
+}
+
+package "核心层" {
+    [单例管理器] as singleton
+    [数据访问层] as dal
+    [工具库] as utils
+}
+
+package "基础设施" {
+    database "MySQL" as mysql
+    cloud "东方财富网API" as eastmoney
+    rectangle "券商客户端" as broker
+}
+
+' 应用层依赖
+web --> dal
+web --> singleton
+trade --> trade_engine
+job --> crawler
+job --> indicator
+job --> pattern
+job --> strategy
+
+' 业务层依赖
+crawler --> singleton
+crawler --> dal
+crawler ..> eastmoney
+
+indicator --> singleton
+indicator --> dal
+
+pattern --> singleton
+pattern --> dal
+
+strategy --> indicator
+strategy --> pattern
+strategy --> dal
+
+trade_engine --> broker
+
+' 核心层依赖
+singleton --> utils
+singleton --> dal
+dal --> mysql
+
+note right of web
+  Tornado Web服务
+  端口: 9988
+end note
+
+note right of trade
+  自动交易服务
+end note
+
+note right of job
+  定时任务调度
+  耗时: ~4分钟
+end note
+
+note right of crawler
+  东方财富网API
+  历史行情/龙虎榜等
+end note
+
+note right of indicator
+  32种技术指标
+  TA-Lib引擎
+end note
+
+note right of pattern
+  61种K线形态
+  筹码分布(CYQ)
+end note
+
+note right of strategy
+  11种选股策略
+  放量上涨/突破平台等
+end note
+
+note right of singleton
+  单例模式
+  16线程池
+end note
+
+note right of dal
+  SQLAlchemy ORM
+  连接池管理
+end note
+
+@enduml

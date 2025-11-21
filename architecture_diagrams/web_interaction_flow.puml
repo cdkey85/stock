@@ -1,0 +1,115 @@
+@startuml Web服务交互流程
+
+title InStock Web服务交互流程
+
+actor "用户浏览器" as user
+participant "Tornado Web\n(9988端口)" as web
+participant "dataTableHandler" as handler
+participant "singleton_stock_web_module_data" as webmodule
+participant "torndb" as torndb
+participant "MySQL" as db
+participant "股票指标可视化" as bokeh
+
+== Web服务启动 ==
+web -> web: web_service.main()
+web -> web: Application初始化
+web -> web: 注册路由处理器
+
+note right
+  路由映射:
+  / -> HomeHandler
+  /instock/data -> GetStockHtmlHandler
+  /instock/api_data -> GetStockDataHandler
+  /instock/data/indicators -> GetDataIndicatorsHandler
+end note
+
+web -> torndb: 创建数据库连接池
+web -> web: 监听9988端口
+web -> user: 服务就绪
+
+== 用户访问首页 ==
+user -> web: GET /
+activate web
+web -> web: HomeHandler.get()
+web -> web: 渲染index.html模板
+web --> user: 返回HTML页面
+deactivate web
+
+== 查看股票列表 ==
+user -> web: GET /instock/data?table_name=策略选股
+activate web
+web -> handler: GetStockHtmlHandler.get()
+handler -> webmodule: stock_web_module_data().get_data(name)
+activate webmodule
+webmodule -> webmodule: 查找表元数据
+
+note right
+  Web模块数据:
+  - table_name: 数据表名
+  - columns: 列定义
+  - order_by: 排序规则
+  - is_realtime: 是否实时
+end note
+
+webmodule --> handler: 返回web_module_data
+deactivate webmodule
+
+handler -> handler: 计算交易日期
+handler -> handler: 渲染stock_web.html
+handler --> user: 返回数据表格HTML
+deactivate web
+
+== 加载表格数据(Ajax) ==
+user -> web: GET /instock/api_data?name=策略选股&date=2025-11-20
+activate web
+web -> handler: GetStockDataHandler.get()
+handler -> webmodule: 获取表配置
+
+handler -> handler: 构建SQL查询
+note right
+  SQL构建:
+  SELECT * FROM 表名
+  WHERE date = '2025-11-20'
+  ORDER BY order_by字段
+end note
+
+handler -> torndb: query(sql, params)
+torndb -> db: 执行SQL查询
+db --> torndb: 返回结果集
+torndb --> handler: 返回数据列表
+
+handler -> handler: JSON序列化\n(处理Date/Bytes类型)
+handler --> user: 返回JSON数据
+deactivate web
+
+user -> user: DataTable渲染表格
+
+== 查看技术指标图表 ==
+user -> web: GET /instock/data/indicators?code=000001&name=平安银行
+activate web
+web -> handler: GetDataIndicatorsHandler.get()
+
+handler -> db: 查询股票历史行情
+handler -> db: 查询技术指标数据
+handler -> db: 查询K线形态数据
+
+handler -> bokeh: 生成K线图
+bokeh -> bokeh: 绘制OHLC蜡烛图
+bokeh -> bokeh: 叠加MACD指标
+bokeh -> bokeh: 叠加KDJ指标
+bokeh -> bokeh: 叠加BOLL通道
+bokeh -> bokeh: 标注K线形态
+
+handler -> handler: 组装图表HTML
+handler --> user: 返回可视化页面
+deactivate web
+
+== 添加关注 ==
+user -> web: POST /instock/control/attention
+activate web
+web -> handler: SaveCollectHandler.post()
+handler -> db: INSERT/UPDATE attention表
+handler --> user: 返回操作结果
+deactivate web
+
+@enduml

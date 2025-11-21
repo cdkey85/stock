@@ -1,0 +1,99 @@
+@startuml InStock系统架构图
+
+title InStock量化投资系统架构图
+
+top to bottom direction
+
+package "外部服务层" {
+    cloud "东方财富网API" as eastmoney
+    database "MySQL数据库" as mysql
+    rectangle "券商客户端" as broker
+}
+
+package "Web服务层" {
+    component "Tornado Web\n(9988端口)" as webserver
+    component "前端界面" as frontend
+}
+
+package "任务调度层" {
+    component "定时任务模块" as jobs
+}
+
+package "核心业务层" {
+    component "数据爬虫" as crawling
+    component "技术指标" as indicator
+    component "K线形态" as pattern
+    component "选股策略" as strategy
+    component "回测分析" as backtest
+}
+
+package "交易引擎层" {
+    component "自动交易模块" as trade
+}
+
+package "基础设施层" {
+    component "数据访问层" as dal
+    component "单例管理器" as singleton
+    component "公共库" as lib
+}
+
+' 关系定义
+frontend --> webserver
+webserver --> dal
+webserver --> singleton
+
+jobs --> crawling
+jobs --> indicator
+jobs --> pattern
+jobs --> strategy
+jobs --> backtest
+
+crawling --> eastmoney
+crawling --> singleton
+crawling --> dal
+
+indicator --> singleton
+indicator --> dal
+
+pattern --> singleton
+pattern --> dal
+
+strategy --> indicator
+strategy --> pattern
+strategy --> dal
+
+backtest --> dal
+
+trade --> broker
+trade --> dal
+
+singleton --> lib
+singleton --> dal
+dal --> mysql
+
+note right of eastmoney
+  数据源:
+  - 实时行情
+  - 历史K线
+  - 龙虎榜
+  - 资金流向
+end note
+
+note right of mysql
+  数据库:
+  - 基础数据表
+  - 技术指标表
+  - 策略结果表
+end note
+
+note bottom of jobs
+  执行顺序:
+  1. 数据库初始化
+  2. 基础数据抓取
+  3. 指标计算(并行)
+  4. 形态识别(并行)
+  5. 策略选股(并行)
+  6. 回测分析
+end note
+
+@enduml
