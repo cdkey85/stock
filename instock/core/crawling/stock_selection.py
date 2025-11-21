@@ -3,8 +3,8 @@
 
 import math
 import pandas as pd
-import requests
 import instock.core.tablestructure as tbs
+from instock.lib import http_client
 from instock.core.singleton_proxy import proxys
 
 
@@ -35,7 +35,7 @@ def stock_selection() -> pd.DataFrame:
         "client": "WEB"
     }
 
-    r = requests.get(url, proxies = proxys().get_proxies(), params=params)
+    r = http_client.get(url, params=params)
     data_json = r.json()
     data = data_json["result"]["data"]
     if not data:
@@ -46,7 +46,7 @@ def stock_selection() -> pd.DataFrame:
     while page_count > 1:
         page_current = page_current + 1
         params["p"] = page_current
-        r = requests.get(url, proxies = proxys().get_proxies(), params=params)
+        r = http_client.get(url, params=params)
         data_json = r.json()
         _data = data_json["result"]["data"]
         data.extend(_data)
@@ -86,7 +86,7 @@ def stock_selection_params():
         "client": "WEB"
     }
 
-    r = requests.get(url, proxies = proxys().get_proxies(), params=params)
+    r = http_client.get(url, params=params)
     data_json = r.json()
     zxzb = data_json["result"]["data"]  # 指标
     print(zxzb)
